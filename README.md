@@ -2,7 +2,7 @@
 
 Цель работы — проверить небольшое приложение на Rust edition 2021, собрать его в режимах debug и release и сохранить запускаемый Docker-образ как артефакт GitHub Actions. Программа выводит `Hello from Rust in Docker! 🦀`. [Методичка преподавателя](https://github.com/rurewa/imfua/blob/main/content/DevOps/CI_CD/Pipelines/Rust_CI_1.md)
 
-Проверки ниже выполнены локально. Первый запуск GitHub Actions состоится после отправки проекта в `main`.
+Локальные проверки и первый запуск GitHub Actions прошли. Docker-образ из артефакта восстановлен и проверен локально. [Первый запуск](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351)
 
 ## Структура проекта
 
@@ -106,3 +106,59 @@ Workflow реагирует на push и pull request для `main` и `master` 
 ### Docker run
 
 ![Контейнер вывел приветствие, завершился с кодом 0 и запустился от appuser](screenshots/05-docker-run.png)
+
+## Результаты GitHub Actions и Docker-артефакта
+
+Первый запуск на коммите `6d2ce9b` завершился со статусом **Success**. GitHub выполнил задания последовательно. [GitHub Actions, запуск № 1](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351)
+
+| Задание | Статус | Результат |
+| --- | --- | --- |
+| [Lint & Format](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351/job/135685769125) | Success | rustfmt и Clippy с `-D warnings` прошли. |
+| [Build & Test](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351/job/135685954423) | Success | `cargo check`, сборки debug и release и три модульных теста прошли. |
+| [Build Docker Image](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351/job/135686146728) | Success | Образ собран, архив загружен, проверены точный stdout, код выхода и UID. |
+
+Артефакт **docker-image** содержит `docker-image.tar.gz`. Размер ZIP — **29 785 129 байт**. SHA-256 ZIP по данным GitHub — `172c5e3a8ef2951a1d4995c9c755e28219635992074ab8ef9061dc9af6a63337`. [Артефакт первого запуска](https://github.com/aleks-maker-maker/my-rust-app/actions/runs/44559837351/artifacts/14545794015)
+
+Локально размер и SHA-256 скачанного ZIP совпали с данными GitHub. После `docker load` восстановленный образ `my-rust-app:latest` вывел строку `Hello from Rust in Docker! 🦀`, завершился с кодом `0` и запустился от `appuser` с UID `1000`.
+
+### Как восстановить образ
+
+Скачайте ZIP со страницы артефакта и сохраните его как `docker-image.zip` в отдельной временной папке. Следующие команды выполняются в этой папке в PowerShell.
+
+~~~powershell
+$expectedSha256 = '172c5e3a8ef2951a1d4995c9c755e28219635992074ab8ef9061dc9af6a63337'
+$actualSha256 = (Get-FileHash -LiteralPath .\docker-image.zip -Algorithm SHA256).Hash
+if ($actualSha256 -ine $expectedSha256) { throw 'SHA-256 mismatch' }
+Expand-Archive -LiteralPath .\docker-image.zip -DestinationPath .\expanded
+docker load -i .\expanded\docker-image.tar.gz
+if ($LASTEXITCODE -ne 0) { throw 'docker load failed' }
+docker run --rm --network none my-rust-app:latest
+if ($LASTEXITCODE -ne 0) { throw 'Application failed' }
+docker run --rm --network none my-rust-app:latest id
+~~~
+
+Для другого запуска возьмите значение `digest` его артефакта из GitHub REST API. GitHub хранит архив семь дней. Свежий архив можно скачать после нового запуска workflow.
+
+### Сводка первого запуска
+
+![Все три задания Rust CI Pipeline завершились успешно](screenshots/06-actions-workflow.png)
+
+### Lint & Format
+
+![Проверки rustfmt и Clippy в GitHub Actions](screenshots/07-lint-and-format-job.png)
+
+### Build & Test
+
+![Проверка кода, две сборки и запуск тестов Cargo](screenshots/08-build-and-test-job.png)
+
+### Build Docker Image
+
+![Сборка, загрузка артефакта и проверка контейнера](screenshots/09-docker-job.png)
+
+### Артефакт docker-image
+
+![Артефакт docker-image на странице запуска GitHub Actions](screenshots/10-actions-artifact.png)
+
+### Восстановление и запуск образа
+
+![Проверка SHA-256 ZIP, docker load, приветствие, exit 0 и UID appuser](screenshots/11-artifact-docker-run.png)
