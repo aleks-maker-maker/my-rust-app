@@ -1,0 +1,11 @@
+/target/
+**/*.rs.bk
+*.swp
+/.idea/
+*.iml
+.env
+.env.*
+*.log
+docker-image.tar
+docker-image.tar.gz
+docker-image.zip
